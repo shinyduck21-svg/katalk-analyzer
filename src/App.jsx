@@ -48,7 +48,7 @@ export default function App() {
   // Challenge Rule settings (하루 3마디 * 2배 = 하루 6개)
   const [dailyComments, setDailyComments] = useState(3); // 하루 3마디
   const [multiplier, setMultiplier] = useState(2); // 2배
-  const [targetDaysMode, setTargetDaysMode] = useState('month30'); // 'month30' (30일 기준 180개) | 'selection' (선택 일수) | 'custom'
+  const [targetDaysMode, setTargetDaysMode] = useState('monthActual'); // 'monthActual' (해당 월 실제 일수: 10월은 31일 등) | 'month30' (30일 고정 180개) | 'selection' | 'custom'
   const [customGoal, setCustomGoal] = useState(180);
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'pass' | 'fail'
 
@@ -170,14 +170,25 @@ export default function App() {
   }, [filteredMessages]);
 
   // Target Goal Calculation based on rule (하루 3마디 * 2배 = 하루 6개)
+  // 해당 월의 실제 일수 (10월: 31일, 9월/11월: 30일, 2월: 28/29일)
+  const currentMonthInfo = useMemo(() => {
+    if (!endDate) return { year: 2026, month: 10, daysInMonth: 31 };
+    const parts = endDate.split('-');
+    const year = parseInt(parts[0], 10) || 2026;
+    const month = parseInt(parts[1], 10) || 10;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    return { year, month, daysInMonth };
+  }, [endDate]);
+
   const targetDays = useMemo(() => {
+    if (targetDaysMode === 'monthActual') return currentMonthInfo.daysInMonth;
     if (targetDaysMode === 'month30') return 30;
-    return data?.summary?.totalDays || 30;
-  }, [targetDaysMode, data]);
+    return data?.summary?.totalDays || currentMonthInfo.daysInMonth;
+  }, [targetDaysMode, currentMonthInfo, data]);
 
   const targetGoal = useMemo(() => {
     if (targetDaysMode === 'custom') return customGoal;
-    // 하루 3마디 * 2배 * 일수 (예: 30일 * 3 * 2 = 180개)
+    // 하루 3마디 * 2배 * 일수 (예: 10월 31일 * 3 * 2 = 186개)
     return targetDays * dailyComments * multiplier;
   }, [targetDaysMode, targetDays, dailyComments, multiplier, customGoal]);
 
@@ -267,7 +278,7 @@ ${top3}
               </h1>
               <p className="mt-3 text-base text-gray-500">
                 카카오톡 대화 내보내기 파일(<code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded font-mono text-sm">.txt</code>, <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded font-mono text-sm">.eml</code>)을 올려보세요.<br />
-                원하는 기간 필터와 <strong>챌린지 탈락 기준(하루 3마디 × 2배 = 월 180개)</strong>을 실시간으로 판정해 드립니다.
+                원하는 기간 필터와 <strong>챌린지 탈락 기준(하루 3마디 × 2배, 해당 월 일수 자동 계산)</strong>을 실시간으로 판정해 드립니다.
               </p>
             </div>
 
@@ -521,7 +532,7 @@ ${top3}
                         <div className="flex items-center gap-2">
                           <h3 className="text-base font-extrabold text-gray-900">챌린지 규칙 판정 현황</h3>
                           <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                            하루 3마디 × 2배 (월 180개)
+                            {targetDaysMode === 'monthActual' ? `${currentMonthInfo.month}월(${targetDays}일) 기준 ${targetGoal}개` : `${targetDays}일 기준 ${targetGoal}개`}
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
@@ -539,7 +550,8 @@ ${top3}
                           onChange={(e) => setTargetDaysMode(e.target.value)}
                           className="bg-white border border-gray-200 rounded-xl px-2.5 py-1 font-semibold text-gray-800 text-xs focus:outline-none cursor-pointer"
                         >
-                          <option value="month30">30일 기준 (180개)</option>
+                          <option value="monthActual">{currentMonthInfo.month}월 실제 일수 ({currentMonthInfo.daysInMonth}일 기준, {currentMonthInfo.daysInMonth * dailyComments * multiplier}개)</option>
+                          <option value="month30">30일 고정 (180개)</option>
                           <option value="selection">선택 기간 ({data?.summary?.totalDays || 30}일)</option>
                           <option value="custom">직접 목표 입력</option>
                         </select>
